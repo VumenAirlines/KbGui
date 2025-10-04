@@ -1,0 +1,36 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="KbGui.Views.MainWindow"
+        xmlns:local="clr-namespace:KbGui"
+        xmlns:viewModels="clr-namespace:KbGui.ViewModels"
+        xmlns:models="clr-namespace:KbGui.Models"
+        x:DataType="viewModels:MainWindowViewModel"
+        Width="800" Height="600"
+        Title="Console UI"
+        Background="#1E1E1E"
+        KeyDown="OnWindowKeyDown">
+   
+    <Grid RowDefinitions="Auto,*,Auto" Focusable="False">
+        
+        <TextBlock Grid.Row="0" FontSize="14" TextWrapping="NoWrap" Focusable="False" FontWeight="Regular"   FontFamily="Cascadia Code" Text="{Binding KeyboardLayout}"/>
+    
+        <ScrollViewer Grid.Row="1"
+                     x:Name="ConsoleScrollViewer"
+                      VerticalScrollBarVisibility="Auto">
+            <DockPanel  LastChildFill="True" Margin="30,0,30,30">
+                <TextBlock DockPanel.Dock="Bottom"   FontFamily="JetBrains Mono,Cascadia Mono, DejaVu Sans Mono, Fira Code, monospace" Text="{Binding CommandInput}"></TextBlock>
+                <ItemsControl ItemsSource="{Binding Output}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}"
+                                       FontFamily="JetBrains Mono,Cascadia Mono, DejaVu Sans Mono, Fira Code, monospace"
+                                       Foreground="#CCCCCC"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </DockPanel>
+            
+        </ScrollViewer>
+
+</Grid>
+</Window>

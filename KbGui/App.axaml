@@ -1,0 +1,18 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="KbGui.App"
+             xmlns:local="using:KbGui"
+             xmlns:drawing="clr-namespace:System.Drawing;assembly=System.ComponentModel.TypeConverter"
+             RequestedThemeVariant="Default">
+             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+
+    <Application.DataTemplates>
+        <local:ViewLocator/>
+    </Application.DataTemplates>
+             <Application.Resources>
+                 <drawing:ColorConverter x:Key="ColorConverter"/>
+             </Application.Resources>
+    <Application.Styles>
+        <FluentTheme />
+    </Application.Styles>
+</Application>

@@ -1,0 +1,24 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KbGui", "KbGui\KbGui.csproj", "{1056E921-2396-4189-B0FF-EFA7D3FE5882}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KBSoftware", "..\KBSoftware\KBSoftware\KBSoftware.csproj", "{16401547-81D7-416C-A23F-6C074160B727}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1056E921-2396-4189-B0FF-EFA7D3FE5882}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1056E921-2396-4189-B0FF-EFA7D3FE5882}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1056E921-2396-4189-B0FF-EFA7D3FE5882}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1056E921-2396-4189-B0FF-EFA7D3FE5882}.Release|Any CPU.Build.0 = Release|Any CPU
+		{16401547-81D7-416C-A23F-6C074160B727}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{16401547-81D7-416C-A23F-6C074160B727}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{16401547-81D7-416C-A23F-6C074160B727}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{16401547-81D7-416C-A23F-6C074160B727}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+	EndGlobalSection
+EndGlobal
