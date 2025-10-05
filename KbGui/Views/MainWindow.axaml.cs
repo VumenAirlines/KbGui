@@ -1,10 +1,7 @@
-using System.Reactive.Disposables;
-using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Markup.Xaml;
 using Avalonia.ReactiveUI;
 using KbGui.ViewModels;
-using ReactiveUI;
+
 
 namespace KbGui.Views;
 

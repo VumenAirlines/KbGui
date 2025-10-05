@@ -61,7 +61,7 @@ public class ConsoleMenu(MenuItem root)
         for (int i = 0; i < menuItems.Length; i++)
         {
             string selection = i == _selectedMenuOption ? "x" : " ";
-            sb.AppendLine($"[{selection}] {menuItems[i].Label}");
+            sb.AppendLine($"[[{selection}]] {menuItems[i].Label}");
         }
 
         return sb.ToString();

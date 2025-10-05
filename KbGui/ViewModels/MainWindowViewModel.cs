@@ -14,7 +14,6 @@ using KBSoftware;
 using KBSoftware.Models;
 using KBSoftware.Services;
 using ReactiveUI;
-using Spectre.Console;
 using Color = KBSoftware.Models.Color;
 using Key = KBSoftware.Models.Key;
 
@@ -26,14 +25,14 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
     private Key[]? _keys;
     private string _keyboardLayout = string.Empty;
     private readonly CancellationTokenSource _tokenSource = new();
-    KeyboardRenderer? renderer;
+    private KeyboardRenderer? _renderer;
     
     private string _input = ">";
     private readonly AvaloniaConsole _console;
     private readonly CancellationTokenSource _loopSource = new();
     public ObservableCollection<ConsoleEntry> Output { get; } = [];
     private readonly ConsoleMenu _menu;
-    public bool AcceptingInput = false;
+    private bool _acceptingInput = false;
 
     public string CommandInput
     {
@@ -83,9 +82,10 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         var lightingMenu = new MenuItem
         {
             Label = "Change lighting",
-            Action =  async ()=>
+            Action = ()=>
             {
-                WriteLine(renderer.GetLedStatusString()); return true;
+                if (_renderer is null) return Task.FromResult(false);
+                WriteLine(_renderer.GetLedStatusString()); return Task.FromResult(true);
             },
             Children =
             [
@@ -137,10 +137,11 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
                         new MenuItem
                         {
                             Label = "Status", 
-                            Action = async ()=>
+                            Action = ()=>
                             {
-                                 WriteLine(renderer.GetGeneralStatusString());
-                                 return false;
+                                if (_renderer is null) return Task.FromResult(false);
+                                WriteLine(_renderer.GetGeneralStatusString());
+                                return Task.FromResult(false);
                             }
                         },
                         new MenuItem { Label = "Back", Command = "back" }
@@ -181,9 +182,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
     }
     private async Task<string> ReadLineAsync()
     {
-        AcceptingInput = true;
+        _acceptingInput = true;
         var result = await _console.StdOut.ReadAsync();
-        AcceptingInput = false;
+        _acceptingInput = false;
         WriteLine();
         return result;
     }
@@ -218,20 +219,20 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
 
     private void HandleChars(char? c)
     {
-        if (!AcceptingInput || !c.HasValue) 
+        if (!_acceptingInput || !c.HasValue) 
             return;
         CommandInput += c;
     }
 
     private void HandleBackspace()
     {
-        if (!AcceptingInput || string.IsNullOrEmpty(CommandInput) || CommandInput.Length == 1) return;
+        if (!_acceptingInput || string.IsNullOrEmpty(CommandInput) || CommandInput.Length == 1) return;
         CommandInput = CommandInput[..^1];
         
     }
     private async Task HandleEnter()
     {
-        if (!AcceptingInput)
+        if (!_acceptingInput)
         {
             await _menu.SelectMenuItem();
             WriteMenu();
@@ -276,8 +277,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
                 Text = menuText,
                 IsMenu = true
             };
-
-            var index = Output.IndexOf(Output.LastOrDefault(e => e.IsMenu));
+            var menu = Output.LastOrDefault(e => e.IsMenu);
+            if(menu is null) return;
+            var index = Output.IndexOf(menu);
             if (index >= 0)
             {
                 Output[index] = menuEntry;
@@ -307,6 +309,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
     {
         try
         {
+            if (_kb is null) throw new NullReferenceException("Keyboard instance was not set");
             _kb.LedConfig.LedMode = mode;
             await _kb.SetLedState();
         }
@@ -346,6 +349,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         }
         try
         {
+            if (_kb is null) throw new NullReferenceException("Keyboard instance was not set");
             _kb.LedConfig.Direction = direction;
             await _kb.SetLedState();
         }
@@ -361,6 +365,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
     {
         try
         {
+            if (_kb is null) throw new NullReferenceException("Keyboard instance was not set");
             _kb.LedConfig.IsRainbow = !_kb.LedConfig.IsRainbow;
             await _kb.SetLedState();
         }
@@ -379,6 +384,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         
         try
         {
+            if (_kb is null) throw new NullReferenceException("Keyboard instance was not set");
             Color color = new Color(input);
             _kb.LedConfig.Color = color;
             await _kb.SetLedState();
@@ -402,6 +408,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         }
         try
         {
+            if (_kb is null) throw new NullReferenceException("Keyboard instance was not set");
             switch (option.ToLowerInvariant())
             {
                 case "speed":
@@ -430,7 +437,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         WriteLine("Choose a device");
         for (int i = 0; i < devices.Length; i++)
         {
-             WriteLine($"> ({i}){devices[i].GetFriendlyName()}");
+             WriteLine($"({i}){devices[i].GetFriendlyName()}");
         }
         var choice = await ReadLineAsync();
         if (!int.TryParse(choice, out var res) || res < 0 || res > devices.Length)
@@ -443,8 +450,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
             var device = devices[res];
             _kb = await Keyboard.CreateAsync(device, _tokenSource.Token);
             _keys = _kb.KeyConfig.Keys;
-            renderer = new KeyboardRenderer(_keys, _kb.DeviceConfig, _kb.DeviceSettings, _kb.LedConfig);
-            var kbString = renderer.GetKbString();
+            _renderer = new KeyboardRenderer(_keys, _kb.DeviceConfig, _kb.DeviceSettings, _kb.LedConfig);
+            var kbString = _renderer.GetKbString();
             KeyboardLayout = kbString;
             Console.WriteLine(kbString);
         }
