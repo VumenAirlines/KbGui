@@ -5,6 +5,8 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Threading;
 using KbGui.Extensions;
@@ -12,6 +14,7 @@ using KbGui.Models;
 using KbGui.Services;
 using KBSoftware;
 using KBSoftware.Models;
+using KBSoftware.Models.Enums;
 using KBSoftware.Services;
 using ReactiveUI;
 using Color = KBSoftware.Models.Color;
@@ -27,7 +30,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
     private readonly CancellationTokenSource _tokenSource = new();
     private KeyboardRenderer? _renderer;
     
-    private string _input = ">";
+    private string _input = "> ";
     private readonly AvaloniaConsole _console;
     private readonly CancellationTokenSource _loopSource = new();
     public ObservableCollection<ConsoleEntry> Output { get; } = [];
@@ -89,66 +92,77 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
             },
             Children =
             [
-                new MenuItem
-                {
-                    Label = "Mode", 
-                    Children = Enum.GetValues<LedMode>().Select(x=>new MenuItem
-                    {
-                        Label = x.ToString(),
-                        Action = () => ChangeMode(x),
-                        Command = "back"
-                    }).ToArray()
-                },
+                AddEnum<LedMode>("Mode"),
                 new MenuItem
                 {
                     Label = "Color",
                     Action = ChangeColor,
                 },
-                new MenuItem
-                {
-                    Label = "Brightness",
-                    Action = ()=>ChangeLightingRange("Brightness",1,5),
-                },
-                new MenuItem
-                {
-                    Label = "Speed",
-                    Action = ()=>ChangeLightingRange("speed",1,5),
-                },
-                new MenuItem { Label = "Direction", Action = ChangeDirection},
-                new MenuItem { Label = "Toggle Rainbow", Action = ToggleRainbow},
+                AddRanged("Speed", "speed",1,5),
+                AddRanged("Brightness", "brightness",1,5),
+                AddEnum<LedDirection>("Direction"),
+                AddToggleable("Rainbow","rainbow"),
 
-                new MenuItem { Label = "Back", Command = "back" }
+                new MenuItem { Label = "Back", Command = "disconnect" }
             ]
             
         };
-        
+        var statusMenu = new MenuItem
+        {
+            Label = "Status",
+            Action = () =>
+            {
+                if (_renderer is null) return Task.FromResult(false);
+                WriteLine(_renderer.GetGeneralStatusString());
+                return Task.FromResult(true);
+            },
+            Children =
+            [
+                AddEnum<PollingRate>("Polling rate"),
+                AddRanged("Sleep Timeout", "sleep_timeout", 1, 30),
+                AddToggleable("Auto Calibration", "auto_calibration"),
+                AddToggleable("Stability Mode", "stability_mode"),
+                new MenuItem { Label = "Back", Command = "disconnect" }
+            ]
+        };
+        var disconnectMenu = new MenuItem
+        {
+            Label = "Back", Command = "disconnect",
+            Action = DisconnectAsync
+        };
+        var exitMenu = new MenuItem
+        {
+            Label = "Exit", 
+            Action = () =>
+            {
+                if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
+                {
+                    lifetime.Shutdown();
+                }
 
+                return Task.FromResult(false);
+            }
+        };
+        var connectMenu = new MenuItem
+        {
+            Label = "Connect",
+            Action = async () => await ConnectAsync(),
+            Children =
+            [
+                lightingMenu,
+                keyMapMenu,
+                statusMenu,
+                disconnectMenu,
+            ]
+
+        };
         var root = new MenuItem
         {
             Label = "Main Menu",
             Children =
             [
-                new MenuItem { 
-                    Label = "Connect", 
-                    Action = async () => await ConnectAsync() , 
-                    Children =  [
-                        lightingMenu,
-                        keyMapMenu,
-                        new MenuItem
-                        {
-                            Label = "Status", 
-                            Action = ()=>
-                            {
-                                if (_renderer is null) return Task.FromResult(false);
-                                WriteLine(_renderer.GetGeneralStatusString());
-                                return Task.FromResult(false);
-                            }
-                        },
-                        new MenuItem { Label = "Back", Command = "back" }
-                    ]
-                    
-                },
-                new MenuItem { Label = "Exit", Command = "exit" }
+                connectMenu,
+                exitMenu
             ]
         };
         LinkParents(root);
@@ -171,6 +185,15 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         Dispatcher.UIThread.Post(() =>
         {
             Output.Add(new ConsoleEntry{Text = text??string.Empty, IsMenu = isMenu});
+        });
+    }
+    private void Clear()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            Output.Clear();
+            CommandInput = "> ";
+            KeyboardLayout = string.Empty;
         });
     }
     private void Write(string? text = null)
@@ -226,7 +249,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
 
     private void HandleBackspace()
     {
-        if (!_acceptingInput || string.IsNullOrEmpty(CommandInput) || CommandInput.Length == 1) return;
+        if (!_acceptingInput || string.IsNullOrEmpty(CommandInput) || CommandInput.Length == 2) return;
         CommandInput = CommandInput[..^1];
         
     }
@@ -239,9 +262,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         }
         else
         {
-            _console.StdIn.TryWrite(CommandInput[1..]+'\n');
+            _console.StdIn.TryWrite(CommandInput[2..]+'\n');
             WriteLine(CommandInput);
-            CommandInput = ">";
+            CommandInput = "> ";
         }
     }
     private async Task ProcessOutputLoopAsync(CancellationToken token)
@@ -262,7 +285,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
    
     private void WriteMenu()
     {
-        
         var menuText = _menu.PrintMenu();
         WriteLine(menuText,true);
     }
@@ -301,57 +323,105 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         _menu.NavigateDown();
         UpdateMenu();
     }
-    
+
+    private MenuItem AddToggleable(string label, string property )
+    {
+        return new MenuItem
+        {
+            Label = $"{label}",
+            Action = async () =>
+            {
+                try
+                {
+                    if (_kb is null) throw new NullReferenceException("Keyboard instance was not set");
+                    switch (property)
+                    {
+                        case "auto_calibration":
+                            _kb.DeviceSettings.AutoCalibration = !_kb.DeviceSettings.AutoCalibration;
+                            await _kb.SetDeviceSettings();
+                            break;
+                        case "stability_mode":
+                            _kb.DeviceSettings.StabilityMode = !_kb.DeviceSettings.StabilityMode;
+                            await _kb.SetDeviceSettings();
+                            break;
+                        case "single_key_wakeup":
+                            _kb.DeviceSettings.SingleKeyWakeUp = !_kb.DeviceSettings.SingleKeyWakeUp;
+                            await _kb.SetDeviceSettings();
+                            break;
+                        case "rainbow":
+                            _kb.LedConfig.IsRainbow = !_kb.LedConfig.IsRainbow;
+                            await _kb.SetLedState();
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException(nameof(property), "Invalid option");
+                    }
+                }
+                catch (Exception e)
+                {
+                    WriteLine(e.Message);
+                    return false;
+                }
+
+                return false;
+            },
+        };
+    }
+
+    private MenuItem AddRanged(string label, string property, int min, int max)
+    {
+        return new MenuItem
+        {
+            Label = label,
+            Action = () => ChangeRange(property,min,max),
+        };
+    }
+    private MenuItem AddEnum<TEnum>(string label)
+        where TEnum : struct, Enum
+    {
+        return new MenuItem
+        {
+            Label = label,
+            Children = Enum.GetNames<TEnum>()
+                .Select(name => new MenuItem
+                {
+                    Label = name,
+                    Action = () => ChangeEnum(Enum.Parse<TEnum>(name)),
+                    Command = "back"
+                })
+                .ToArray()
+        };
+    }
     #endregion
 
     #region kb
- private async Task<bool> ChangeMode(LedMode mode)
+    
+    private async Task<bool> ChangeEnum<TEnum>(TEnum value)
+        where TEnum : struct, Enum
     {
         try
         {
             if (_kb is null) throw new NullReferenceException("Keyboard instance was not set");
-            _kb.LedConfig.LedMode = mode;
-            await _kb.SetLedState();
-        }
-        catch (Exception e)
-        {
-           WriteLine(e.Message);
-           return true;
-        }
-
-        return true;
-    }
-    private async Task<bool> ChangeDirection()
-    {
-        WriteLine("Enter direction(up/down/left/right)");
-        var input = await ReadLineAsync();
-        LedDirection direction;
-        switch (input)
-        {
-            case "up":
-                direction = LedDirection.Up;
-                break;
-            case "down":
-                direction = LedDirection.Down;
-                
-                break;
-            case "left":
-                direction = LedDirection.Left;
-                
-                break;
-            case "right":
-                direction = LedDirection.Right;
-                
-                break;
-            default:
-                WriteLine("Invalid input");
+            if (typeof(TEnum) == typeof(LedDirection))
+            {
+                _kb.LedConfig.Direction = (LedDirection)(object)value;
+                await _kb.SetLedState();
+            }
+            else if (typeof(TEnum) == typeof(LedMode))
+            {
+                _kb.LedConfig.LedMode = (LedMode)(object)value;
+                await _kb.SetLedState();
+            }
+            else if (typeof(TEnum) == typeof(PollingRate))
+            {
+                _kb.DeviceSettings.PollingRate = (PollingRate)(object)value;
+                await _kb.SetDeviceSettings();
+            }
+            else
+            {
+                WriteLine($"Unsupported enum type: {typeof(TEnum).Name}");
                 return false;
-        }
-        try
-        {
-            if (_kb is null) throw new NullReferenceException("Keyboard instance was not set");
-            _kb.LedConfig.Direction = direction;
-            await _kb.SetLedState();
+            }
+           
         }
         catch (Exception e)
         {
@@ -359,24 +429,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
             return false;
         }
         
-        return false;
+        return true;
     }
-    private async Task<bool> ToggleRainbow()
-    {
-        try
-        {
-            if (_kb is null) throw new NullReferenceException("Keyboard instance was not set");
-            _kb.LedConfig.IsRainbow = !_kb.LedConfig.IsRainbow;
-            await _kb.SetLedState();
-        }
-        catch (Exception e)
-        {
-            WriteLine(e.Message);
-            return false;
-        }
-
-        return false;
-    }
+    
     private async Task<bool> ChangeColor()
     {
         WriteLine("Enter Hex Color");
@@ -397,7 +452,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
 
         return false;
     }
-    private async Task<bool> ChangeLightingRange(string option, int start, int end)
+    private async Task<bool> ChangeRange(string option, int start, int end)
     {
         WriteLine($"Input a value between {start} and {end}");
         var value = await ReadLineAsync();
@@ -413,22 +468,42 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
             {
                 case "speed":
                     _kb.LedConfig.Speed = result;
+                    await _kb.SetLedState();
                     break;
                 case "brightness":
                     _kb.LedConfig.Brightness = result;
+                    await _kb.SetLedState();
+                    break;
+                case "sleep_timeout":
+                    _kb.DeviceSettings.SleepTimeOutMinutes = result;
+                    await _kb.SetDeviceSettings();
                     break;
             }
-
-            await _kb.SetLedState();
         }
         catch (Exception e)
         {
             WriteLine(e.Message);
             return false;
-           
         }
 
         return false;
+    }
+    private async Task<bool> DisconnectAsync()
+    {
+        if (_kb is not null)
+        {
+            WriteLine("Disconnecting...");
+            try
+            {
+                await _kb.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                WriteLine($"Error: {ex.Message}");
+            }
+        }
+        Clear();
+        return true;
     }
     private async Task<bool> ConnectAsync()
     {

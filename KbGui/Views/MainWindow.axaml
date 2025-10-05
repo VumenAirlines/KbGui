@@ -19,11 +19,11 @@
                      x:Name="ConsoleScrollViewer"
                       VerticalScrollBarVisibility="Auto">
             <DockPanel  LastChildFill="True" Margin="30,0,30,30">
-                <TextBlock DockPanel.Dock="Bottom"   FontFamily="JetBrains Mono,Cascadia Mono, DejaVu Sans Mono, Fira Code, monospace" Text="{Binding CommandInput}"></TextBlock>
+                <TextBlock DockPanel.Dock="Bottom"   FontFamily="Cascadia Code" Text="{Binding CommandInput}"></TextBlock>
                 <ItemsControl ItemsSource="{Binding Output}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <TextBlock FontFamily="JetBrains Mono,Cascadia Mono, DejaVu Sans Mono, Fira Code, monospace"
+                            <TextBlock FontFamily="Cascadia Code"
                                        Inlines="{Binding Text, Converter={StaticResource ColoredTextConverter}}"/>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

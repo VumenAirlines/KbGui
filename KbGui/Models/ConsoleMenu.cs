@@ -35,19 +35,36 @@ public class ConsoleMenu(MenuItem root)
             throw new ArgumentOutOfRangeException(nameof(_selectedMenuOption),"Selected items index must be within the menus length");
         
         var selected = CurrentMenu[_selectedMenuOption];
-        
+
         if (selected.Action != null)
-            if (!await selected.Action())
-                return string.Empty;
-
-
-        if (selected.Command == "back")
         {
-            Root = selected.Previous?.Previous ?? Root;
-            _selectedMenuOption = 0;
+            if (!await selected.Action())
+            {
+                if (Root.Action != null)
+                    await Root.Action();
+                _selectedMenuOption = 0;
+                return Root.Label;
+            }
+            
         }
-        else
-            Root = selected;
+
+        switch (selected.Command)
+        {
+            case "disconnect":
+                Root = selected.Previous?.Previous ?? Root;
+                break;
+            case "back":
+            {
+                Root = selected.Previous?.Previous ?? Root;
+                if (Root.Action != null)
+                    await Root.Action();
+                break;
+            }
+            default:
+                Root = selected;
+                break;
+        }
+        _selectedMenuOption = 0;
         return selected.Label;
     }
     public string PrintMenu()
