@@ -162,6 +162,19 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
                 return Task.FromResult(false);
             }
         };
+        var resetMenu = new MenuItem
+        {
+            Label = "Reset",
+            Action = () =>
+            {
+                WriteLine("[red]Are you sure you want to factory reset? This can not be undone[/]");
+                return Task.FromResult(true);
+            },
+            Children = [
+                new MenuItem{Label = "[red]Yes[/]", Action = ResetAsync, Command = "disconnect"},
+                new MenuItem{Label = "No", Command = "disconnect"}
+            ]
+        };
         var connectMenu = new MenuItem
         {
             Label = "Connect",
@@ -171,6 +184,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
                 lightingMenu,
                 keyMapMenu,
                 statusMenu,
+                resetMenu,
                 disconnectMenu,
             ]
 
@@ -329,7 +343,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
             {
                 Output.Add(menuEntry);
             }
-
         });
     }
     private void NavigateUp()
@@ -406,24 +419,28 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
                     Action = () => ChangeEnum(Enum.Parse<TEnum>(name)),
                     Command = "back"
                 })
-                .ToArray()
+                    .Append(new MenuItem{Label = "Back", Command = "back"})
+                    .ToArray()
         };
     }
-    #endregion
-
     private MenuItem AddDictionary(string label, ImmutableDictionary<int, KeyOption> dict)
     {
         return new MenuItem
         {
             Label = label,
             Children = dict.Select(x => new MenuItem
-            {
-                Label = x.Value.Description,
-                Action = ()=> SetKey(_currentIndex,x.Value),
-                Command = "disconnect"
-            }).ToArray()
+                {
+                    Label = x.Value.Description,
+                    Action = ()=> SetKey(_currentIndex,x.Value),
+                    Command = "disconnect"
+                })
+                .Append(new MenuItem{Label = "Back", Command = "disconnect"})
+                .ToArray()
         };
     }
+    #endregion
+
+ 
     #region kb
 
     private async Task<bool> SetKey(PacketIndex? index, KeyOption keyOption)
@@ -622,6 +639,34 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         }
 
         return true;
+    }
+
+    private async Task<bool> ResetAsync()
+    {
+        try
+        {
+            if (_kb is null) throw new NullReferenceException("Keyboard instance was not set");
+            WriteLine("[red]Are you sure you want to factory reset? This can not be undone[/] [[Y/n]]");
+            var answer = await ReadLineAsync();
+            switch (answer)
+            {
+                case "Y":
+                    await Task.Delay(100);
+                    await _kb.FactoryReset();
+                    break;
+                default:
+                    break;
+            
+            }
+
+            return true;
+        }
+        catch (Exception e)
+        {
+           WriteLine(e.Message);
+            return true;
+        }
+        
     }
     
 

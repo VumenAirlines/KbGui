@@ -7,7 +7,8 @@
         Width="800" Height="600"
         Title="Console UI"
         Background="#1E1E1E"
-        KeyDown="OnWindowKeyDown">
+        KeyDown="OnWindowKeyDown"
+        KeyUp="OnWindowKeyUp">
     <Window.Resources>
         <converters:MarkupConverter x:Key="ColoredTextConverter"/>
     </Window.Resources>
