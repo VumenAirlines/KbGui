@@ -21,7 +21,7 @@ public partial class MarkupConverter: IValueConverter
             if (match.Index > lastIndex)
             {
                 string before = text.Substring(lastIndex, match.Index - lastIndex);
-                inlines.Add(new Run { Text = before, Foreground = Brushes.White });
+                inlines.Add(new Run { Text = before.Replace("[[", "[").Replace("]]", "]"), Foreground = Brushes.White });
             }
 
             string color = match.Groups[1].Value;
@@ -50,6 +50,7 @@ public partial class MarkupConverter: IValueConverter
             "red" => Brushes.Red,
             "green" => Brushes.Green,
             "blue" => Brushes.Blue,
+            "cyan" => Brushes.Cyan,
             "yellow" => Brushes.Yellow,
             "white" => Brushes.White,
             "gray" => Brushes.Gray,

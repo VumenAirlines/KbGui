@@ -13,8 +13,13 @@
     </Window.Resources>
     <Grid RowDefinitions="Auto,*,Auto" Focusable="False">
         
-        <TextBlock Grid.Row="0" FontSize="14" TextWrapping="NoWrap" Focusable="False" FontWeight="Regular"   FontFamily="Cascadia Code" Text="{Binding KeyboardLayout}"/>
-    
+        <TextBlock Grid.Row="0"
+                   FontSize="14"
+                   TextWrapping="Wrap"
+                   Focusable="False"
+                   FontWeight="Regular"
+                   FontFamily="Cascadia Code"
+                   Inlines="{Binding KeyboardLayout, Converter={StaticResource ColoredTextConverter}}"/>    
         <ScrollViewer Grid.Row="1"
                      x:Name="ConsoleScrollViewer"
                       VerticalScrollBarVisibility="Auto">

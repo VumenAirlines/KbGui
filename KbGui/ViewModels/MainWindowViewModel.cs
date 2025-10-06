@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reactive.Disposables;
@@ -29,6 +31,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
     private string _keyboardLayout = string.Empty;
     private readonly CancellationTokenSource _tokenSource = new();
     private KeyboardRenderer? _renderer;
+    private PacketIndex? _currentIndex = null;
     
     private string _input = "> ";
     private readonly AvaloniaConsole _console;
@@ -74,11 +77,27 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         var keyMapMenu = new MenuItem
         {
             Label = "Change key mappings",
+            Action = () =>
+            {
+                KeyboardLayout = _renderer.GetKbString();
+                return Task.FromResult(true);
+            },
             Children =
             [
-                new MenuItem { Label = "Option 1" },
-                new MenuItem { Label = "Option 2" },
-                new MenuItem { Label = "Back", Command = "back" }
+                new MenuItem
+                {
+                    Label = "Select Key",
+                    Action = SelectKey,
+                    Children =
+                    [
+                        AddDictionary("Normal keys", KeyOptions.NormalKeys),
+                        AddDictionary("Media keys", KeyOptions.MediaKeys),
+                        AddDictionary("Mouse keys", KeyOptions.MouseButtonKeys),
+                        AddDictionary("Special keys", KeyOptions.SpecialKeys),
+                        new MenuItem { Label = "Back", Command = "back" }
+                    ]
+                },
+                new MenuItem { Label = "Back", Command = "disconnect" }
             ]
         };
 
@@ -366,7 +385,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
             },
         };
     }
-
     private MenuItem AddRanged(string label, string property, int min, int max)
     {
         return new MenuItem
@@ -393,8 +411,78 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
     }
     #endregion
 
+    private MenuItem AddDictionary(string label, ImmutableDictionary<int, KeyOption> dict)
+    {
+        return new MenuItem
+        {
+            Label = label,
+            Children = dict.Select(x => new MenuItem
+            {
+                Label = x.Value.Description,
+                Action = ()=> SetKey(_currentIndex,x.Value),
+                Command = "disconnect"
+            }).ToArray()
+        };
+    }
     #region kb
-    
+
+    private async Task<bool> SetKey(PacketIndex? index, KeyOption keyOption)
+    {
+        try
+        {
+            if (_kb is null) throw new NullReferenceException("Keyboard instance was not set");
+            if (index is null || !index.HasValue) throw new ArgumentNullException(nameof(index), "Index cant be null");
+            _kb.KeyConfig.SetKey(index.Value,keyOption);
+            await _kb.SetKeymapState();
+            _renderer = new KeyboardRenderer(_kb.KeyConfig.Keys, _kb.DeviceConfig, _kb.DeviceSettings, _kb.LedConfig);
+        }
+        catch (Exception e)
+        {
+            WriteLine(e.Message);
+            return true;
+        }
+
+        return true;
+    }
+    private async Task<bool> SelectKey()
+    {
+        WriteLine("Select a row (0-6)");
+        try
+        {
+            var row = await ReadLineAsync();
+            if (!int.TryParse(row, out var rowNum))
+            {
+                throw new ArgumentOutOfRangeException(nameof(row), "Input is not a valid number");
+            }
+            KeyboardLayout = _renderer.GetKbString(rowNum);
+            var range = rowNum switch
+            {
+                0 or 1 or 3  => 13,
+                2 => 14,
+                4=>12,
+                5 => 9,
+                6 => 2,
+                _=>throw new ArgumentOutOfRangeException(nameof(rowNum), "Row must be between 0 and 6")
+            };
+            WriteLine($"Select a key (0-{range})");
+            var col = await ReadLineAsync();
+            int.TryParse(col, out var colNum);
+            if (rowNum == 6) colNum++;
+            KeyboardLayout = _renderer.GetKbString(rowNum, colNum);
+            _currentIndex = _renderer.KeyboardLayout[rowNum][colNum].PacketIndex;
+            if (!_currentIndex.HasValue)
+            {
+                throw new ArgumentException("Invalid key selected");
+            }
+            return true;
+        }
+        catch (Exception e)
+        {
+            WriteLine(e.Message);
+            return false;
+        }
+       
+    }
     private async Task<bool> ChangeEnum<TEnum>(TEnum value)
         where TEnum : struct, Enum
     {
@@ -431,7 +519,6 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         
         return true;
     }
-    
     private async Task<bool> ChangeColor()
     {
         WriteLine("Enter Hex Color");
@@ -524,8 +611,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         {
             var device = devices[res];
             _kb = await Keyboard.CreateAsync(device, _tokenSource.Token);
-            _keys = _kb.KeyConfig.Keys;
-            _renderer = new KeyboardRenderer(_keys, _kb.DeviceConfig, _kb.DeviceSettings, _kb.LedConfig);
+            _renderer = new KeyboardRenderer(_kb.KeyConfig.Keys, _kb.DeviceConfig, _kb.DeviceSettings, _kb.LedConfig);
             var kbString = _renderer.GetKbString();
             KeyboardLayout = kbString;
             Console.WriteLine(kbString);
