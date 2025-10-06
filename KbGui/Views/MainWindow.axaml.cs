@@ -17,14 +17,16 @@ public partial class MainWindow : ReactiveWindow<MainWindowViewModel>
      {
          if(ViewModel is null)
              return;
-         Console.WriteLine($"{e.Key} pressed");
+         ViewModel.Logger.Debug($"{e.Key} pressed");
          await ViewModel.HandleKeypress(e);
          if(e.Key == Key.Enter)
             ConsoleScrollViewer.ScrollToEnd(); 
      }
      private void OnWindowKeyUp(object? sender, KeyEventArgs e)
      {
-         Console.WriteLine($"{e.Key} released");
+         if(ViewModel is null)
+             return;
+         ViewModel.Logger.Debug($"{e.Key} released");
      }
 
     

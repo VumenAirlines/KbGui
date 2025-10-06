@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -20,18 +19,17 @@ using KBSoftware.Models.Enums;
 using KBSoftware.Services;
 using ReactiveUI;
 using Color = KBSoftware.Models.Color;
-using Key = KBSoftware.Models.Key;
 
 namespace KbGui.ViewModels;
 
 public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewModel
 {
     private Keyboard? _kb;
-    private Key[]? _keys;
     private string _keyboardLayout = string.Empty;
     private readonly CancellationTokenSource _tokenSource = new();
     private KeyboardRenderer? _renderer;
     private PacketIndex? _currentIndex = null;
+    public ILogger Logger { get; } = new Logger(LogLevel.Debug);
     
     private string _input = "> ";
     private readonly AvaloniaConsole _console;
@@ -72,13 +70,14 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
 
     private MenuItem SetUpMenu()
     {
-     
-
+        
         var keyMapMenu = new MenuItem
         {
             Label = "Change key mappings",
             Action = () =>
             {
+                if (_renderer is null)
+                    return Task.FromResult(false);
                 KeyboardLayout = _renderer.GetKbString();
                 return Task.FromResult(true);
             },
@@ -220,6 +219,13 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
             Output.Add(new ConsoleEntry{Text = text??string.Empty, IsMenu = isMenu});
         });
     }
+    private void WriteError(string? text = null)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            Output.Add(new ConsoleEntry{Text = $"[red]{text??string.Empty}[/]", IsMenu = false});
+        });
+    } 
     private void Clear()
     {
         Dispatcher.UIThread.Post(() =>
@@ -391,6 +397,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
                 catch (Exception e)
                 {
                     WriteLine(e.Message);
+                    Logger.Error("Error adding toggleable",e);
                     return false;
                 }
 
@@ -455,7 +462,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         }
         catch (Exception e)
         {
-            WriteLine(e.Message);
+            WriteError(e.Message);
+            Logger.Error($"Error setting key {index}",e);
             return true;
         }
 
@@ -471,6 +479,9 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
             {
                 throw new ArgumentOutOfRangeException(nameof(row), "Input is not a valid number");
             }
+
+            if (_renderer is null)
+                throw new ArgumentNullException(nameof(_renderer), "Keyboard renderer i snot set");
             KeyboardLayout = _renderer.GetKbString(rowNum);
             var range = rowNum switch
             {
@@ -495,7 +506,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         }
         catch (Exception e)
         {
-            WriteLine(e.Message);
+            WriteError(e.Message);
+            Logger.Error("Error selecting key",e);
             return false;
         }
        
@@ -521,16 +533,13 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
                 _kb.DeviceSettings.PollingRate = (PollingRate)(object)value;
                 await _kb.SetDeviceSettings();
             }
-            else
-            {
-                WriteLine($"Unsupported enum type: {typeof(TEnum).Name}");
-                return false;
-            }
-           
+            else 
+                throw new ArgumentOutOfRangeException(nameof(TEnum), "Unsupported enum type");
         }
         catch (Exception e)
         {
-            WriteLine(e.Message);
+            WriteError(e.Message);
+            Logger.Error($"Error setting enum value {value}",e);
             return false;
         }
         
@@ -550,7 +559,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         }
         catch (Exception e)
         {
-            WriteLine(e.Message);
+            WriteError(e.Message);
+            Logger.Error("Error changing color",e);
             return false;
         }
 
@@ -562,8 +572,7 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         var value = await ReadLineAsync();
         if (!int.TryParse(value, out var result))
         {
-            WriteLine("Invalid input");
-            return false;
+            throw new ArgumentOutOfRangeException( nameof(result),"Input is not a valid number");
         }
         try
         {
@@ -586,7 +595,8 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         }
         catch (Exception e)
         {
-            WriteLine(e.Message);
+            WriteError(e.Message);
+            Logger.Error($"Error changing ranged {option}",e);
             return false;
         }
 
@@ -601,9 +611,10 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
             {
                 await _kb.DisposeAsync();
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                WriteLine($"Error: {ex.Message}");
+                WriteError($"Error: {e.Message}");
+                Logger.Error("Error disconnecting",e);
             }
         }
         Clear();
@@ -621,21 +632,22 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
         var choice = await ReadLineAsync();
         if (!int.TryParse(choice, out var res) || res < 0 || res > devices.Length)
         {
-            WriteLine("Invalid choice");
+            WriteError("Invalid choice");
             return false;
         }
         try
         {
             var device = devices[res];
-            _kb = await Keyboard.CreateAsync(device, _tokenSource.Token);
+            _kb = await Keyboard.CreateAsync(device, Logger  ,token: _tokenSource.Token);
             _renderer = new KeyboardRenderer(_kb.KeyConfig.Keys, _kb.DeviceConfig, _kb.DeviceSettings, _kb.LedConfig);
             var kbString = _renderer.GetKbString();
             KeyboardLayout = kbString;
-            Console.WriteLine(kbString);
+            Logger.Debug(KeyboardLayout);
         }
-        catch
+        catch(Exception e)
         {
-            throw;
+            Logger.Error("Error connecting",e);
+            WriteError("Error connecting");
         }
 
         return true;
@@ -654,16 +666,14 @@ public class MainWindowViewModel : ViewModelBase, IDisposable, IActivatableViewM
                     await Task.Delay(100);
                     await _kb.FactoryReset();
                     break;
-                default:
-                    break;
-            
             }
 
             return true;
         }
         catch (Exception e)
         {
-           WriteLine(e.Message);
+            WriteError(e.Message);
+            Logger.Error("Error resetting",e);
             return true;
         }
         
